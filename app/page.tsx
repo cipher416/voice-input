@@ -1,3 +1,5 @@
+"use client";
+import { InstallSnippet } from "@/components/install-snippet";
 import { ThemeSwitcher } from "@/components/kibo-ui/theme-switcher";
 import { Button } from "@/components/ui/button";
 import { VoiceInputCodeExample } from "@/components/voice-input-code-example";
@@ -31,6 +33,9 @@ export default function Home() {
           <span>github.com/cipher416/voice-input</span>
         </Link>
       </Button>
+
+      <InstallSnippet />
+
       <div className="flex flex-col gap-4 border rounded-lg p-4 relative">
         <WebSpeechDemo />
         <VoiceInputCodeExample />
