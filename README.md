@@ -1,23 +1,45 @@
-# registry-template
+# Voice Input Registry
 
-You can use the `shadcn` CLI to run your own component registry. Running your own
-component registry allows you to distribute your custom components, hooks, pages, and
-other files to any React project.
+## What’s inside
 
-> [!IMPORTANT]  
-> This template uses Tailwind v4. For Tailwind v3, see [registry-template-v3](https://github.com/shadcn-ui/registry-template-v3).
+- Next.js app with live Web Speech demo and code snippet.
+- Registry items defined in `registry.json` and built to `public/r/*.json`.
+- Tailwind v4 + new-york theme.
+- Theme switcher and install snippet UI for quick copy/paste commands.
 
-## Getting Started
+## Run locally
 
-This is a template for creating a custom registry using Next.js.
+```bash
+pnpm install
+pnpm dev    # starts Next.js at http://localhost:3000
+```
 
-- The template uses a `registry.json` file to define components and their files.
-- The `shadcn build` command is used to build the registry.
-- The registry items are served as static files under `public/r/[name].json`.
-- The template also includes a route handler for serving registry items.
-- Every registry item are compatible with the `shadcn` CLI.
-- We have also added v0 integration using the `Open in v0` api.
+## Build the registry
 
-## Documentation
+Regenerate static registry files (including `voice-input.json`):
 
-Visit the [shadcn documentation](https://ui.shadcn.com/docs/registry) to view the full documentation.
+```bash
+pnpm registry:build
+```
+
+Output is written to `public/r/`.
+
+## Consume the voice-input component
+
+Direct one-liner (no extra config):
+
+```
+pnpm dlx shadcn@latest add https://voice-input.cristoper.dev/r/voice-input.json
+```
+
+Other package managers:
+
+- npm: `npx shadcn@latest add https://voice-input.cristoper.dev/r/voice-input.json`
+- yarn: `yarn dlx shadcn@latest add https://voice-input.cristoper.dev/r/voice-input.json`
+- bun: `bunx shadcn@latest add https://voice-input.cristoper.dev/r/voice-input.json`
+
+## Docs
+
+- shadcn registry guide: https://ui.shadcn.com/docs/registry
+- Tailwind v4 info: https://tailwindcss.com
+- Motion: https://motion.dev/
