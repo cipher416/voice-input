@@ -6,8 +6,8 @@ import { motion } from "motion/react";
 import * as React from "react";
 
 import { cn } from "@/lib/utils";
-import { Button } from "./button";
-import { Skeleton } from "./skeleton";
+import { Button } from "@/registry/new-york/ui/button";
+import { Skeleton } from "@/registry/new-york/ui/skeleton";
 
 const buttonVariants = cva("!px-0", {
   variants: {
