@@ -6,7 +6,7 @@ import {
   VoiceInputCancelButton,
   VoiceInputPreview,
   VoiceInputRecordButton,
-} from "@/registry/new-york/ui/voice-input";
+} from "@/components/voice-input";
 import * as React from "react";
 
 type SpeechRecognitionAlternative = {
