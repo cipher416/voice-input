@@ -70,10 +70,7 @@ function buildTranscript({
   const committed = committedTranscripts.join(" ").trim();
   const partial = partialTranscript.trim();
 
-  if (committed && partial) {
-    return `${committed} ${partial}`;
-  }
-  return committed || partial;
+  return [committed, partial].filter(Boolean).join(" ");
 }
 
 export interface VoiceInputProps {
@@ -299,6 +296,14 @@ export interface VoiceInputPreviewProps
    * @default "Listening..."
    */
   placeholder?: string;
+
+  /**
+   * Which text to display in the preview.
+   * - "full": committed + partial transcript
+   * - "partial": only the current partial transcript
+   * @default "partial"
+   */
+  display?: "full" | "partial";
 }
 
 /**
@@ -309,13 +314,28 @@ const VoiceInputPreview = React.forwardRef<
   HTMLDivElement,
   VoiceInputPreviewProps
 >(function VoiceInputPreview(
-  { className, placeholder = "Listening...", ...props },
+  { className, placeholder = "Listening...", display = "full", ...props },
   ref,
 ) {
   const voiceInput = useVoiceInput();
+  const previewText =
+    display === "partial"
+      ? voiceInput.partialTranscript
+      : voiceInput.transcript;
+  const [visiblePreview, setVisiblePreview] = React.useState("");
 
-  const displayText = voiceInput.transcript || placeholder;
-  const showPlaceholder = !voiceInput.transcript.trim();
+  React.useEffect(() => {
+    if (previewText.trim()) {
+      setVisiblePreview(previewText);
+    } else if (!voiceInput.isConnected) {
+      // Clear when not connected so next start shows placeholder again.
+      setVisiblePreview("");
+    }
+  }, [previewText, voiceInput.isConnected]);
+
+  const showPlaceholder = !visiblePreview.trim() && voiceInput.isConnected;
+  const displayText =
+    visiblePreview || (voiceInput.isConnected ? placeholder : "");
 
   return (
     <div
