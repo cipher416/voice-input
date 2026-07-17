@@ -8,8 +8,8 @@
       "type": "registry:component",
       "title": "Voice Input",
       "description": "Compound voice input UI with record, cancel, and preview states.",
-      "dependencies": ["class-variance-authority", "lucide-react", "motion"],
-      "registryDependencies": ["button", "skeleton"],
+      "dependencies": ["lucide-react"],
+      "registryDependencies": ["button"],
       "files": [
         {
           "path": "registry/new-york/ui/voice-input.tsx",

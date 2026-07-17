@@ -31,6 +31,7 @@ interface WebSpeechRecognition extends EventTarget {
   continuous: boolean;
   interimResults: boolean;
   lang: string;
+  abort: () => void;
   start: () => void;
   stop: () => void;
   onstart: (() => void) | null;
@@ -40,6 +41,24 @@ interface WebSpeechRecognition extends EventTarget {
 }
 
 type SpeechRecognitionCtor = new () => WebSpeechRecognition;
+
+const subscribeToSpeechSupport = () => () => {};
+
+function getSpeechRecognitionErrorMessage(error?: string) {
+  switch (error) {
+    case "audio-capture":
+      return "No microphone was found.";
+    case "network":
+      return "Speech recognition lost its network connection.";
+    case "no-speech":
+      return "No speech was detected. Try again when you are ready.";
+    case "not-allowed":
+    case "service-not-allowed":
+      return "Microphone access was denied. Allow access and try again.";
+    default:
+      return error ? `Speech recognition failed: ${error}.` : "Speech recognition failed.";
+  }
+}
 
 function getSpeechRecognitionCtor(): SpeechRecognitionCtor | undefined {
   if (typeof window === "undefined") return undefined;
@@ -61,22 +80,21 @@ function getSpeechRecognitionCtor(): SpeechRecognitionCtor | undefined {
 
 export function WebSpeechDemo() {
   const recognitionRef = React.useRef<WebSpeechRecognition | null>(null);
+  const ignoreAbortErrorRef = React.useRef(false);
 
   const [isConnected, setIsConnected] = React.useState(false);
   const [isConnecting, setIsConnecting] = React.useState(false);
+  const [isStopping, setIsStopping] = React.useState(false);
   const [partialTranscript, setPartialTranscript] = React.useState("");
   const [committedTranscripts, setCommittedTranscripts] = React.useState<
     string[]
   >([]);
   const [error, setError] = React.useState<string | null>(null);
-  const [isSupported, setIsSupported] = React.useState<boolean | null>(null);
-  const [isPending, startTransition] = React.useTransition();
-
-  React.useEffect(() => {
-    startTransition(() => {
-      setIsSupported(Boolean(getSpeechRecognitionCtor()));
-    });
-  }, []);
+  const isSupported = React.useSyncExternalStore<boolean | null>(
+    subscribeToSpeechSupport,
+    () => Boolean(getSpeechRecognitionCtor()),
+    () => null,
+  );
 
   const ensureRecognizer = React.useCallback(() => {
     const Ctor = getSpeechRecognitionCtor();
@@ -90,11 +108,14 @@ export function WebSpeechDemo() {
     recognition.lang = "en-US";
 
     recognition.onstart = () => {
+      setIsStopping(false);
       setIsConnecting(false);
       setIsConnected(true);
     };
 
     recognition.onresult = (event) => {
+      const finalTranscripts: string[] = [];
+
       for (let i = event.resultIndex; i < event.results.length; i += 1) {
         const result = event.results[i];
         const transcript = result[0]?.transcript?.trim() ?? "";
@@ -102,21 +123,43 @@ export function WebSpeechDemo() {
         if (!transcript) continue;
 
         if (result.isFinal) {
-          setCommittedTranscripts((prev) => [...prev, transcript]);
-          setPartialTranscript("");
-        } else {
-          setPartialTranscript(transcript);
+          finalTranscripts.push(transcript);
         }
       }
+
+      const interimTranscripts: string[] = [];
+      for (let i = 0; i < event.results.length; i += 1) {
+        const result = event.results[i];
+        if (result.isFinal) continue;
+
+        const transcript = result[0]?.transcript?.trim() ?? "";
+        if (transcript) interimTranscripts.push(transcript);
+      }
+
+      if (finalTranscripts.length > 0) {
+        setCommittedTranscripts((previous) => [
+          ...previous,
+          ...finalTranscripts,
+        ]);
+      }
+      setPartialTranscript(interimTranscripts.join(" "));
     };
 
     recognition.onerror = (event) => {
-      setError(event.error ?? "Speech recognition error");
+      if (event.error === "aborted" && ignoreAbortErrorRef.current) {
+        ignoreAbortErrorRef.current = false;
+        return;
+      }
+
+      setError(getSpeechRecognitionErrorMessage(event.error));
+      setIsStopping(true);
       setIsConnecting(false);
       setIsConnected(false);
     };
 
     recognition.onend = () => {
+      ignoreAbortErrorRef.current = false;
+      setIsStopping(false);
       setIsConnecting(false);
       setIsConnected(false);
       setPartialTranscript("");
@@ -127,6 +170,9 @@ export function WebSpeechDemo() {
   }, []);
 
   const start = React.useCallback(() => {
+    if (isStopping) return;
+
+    ignoreAbortErrorRef.current = false;
     setError(null);
     setCommittedTranscripts([]);
     setPartialTranscript("");
@@ -145,14 +191,21 @@ export function WebSpeechDemo() {
       setIsConnecting(false);
       setError(err instanceof Error ? err.message : String(err));
     }
-  }, [ensureRecognizer]);
+  }, [ensureRecognizer, isStopping]);
 
   const stop = React.useCallback(() => {
     const recognition = recognitionRef.current;
     if (!recognition) return;
+    setIsStopping(true);
     setIsConnecting(false);
     setIsConnected(false);
-    recognition.stop();
+
+    try {
+      recognition.stop();
+    } catch (err) {
+      setIsStopping(false);
+      setError(err instanceof Error ? err.message : String(err));
+    }
   }, []);
 
   const cancel = React.useCallback(() => {
@@ -161,28 +214,51 @@ export function WebSpeechDemo() {
     setPartialTranscript("");
     setIsConnecting(false);
     setIsConnected(false);
-    recognition?.stop();
+
+    if (!recognition) return;
+
+    ignoreAbortErrorRef.current = true;
+    setIsStopping(true);
+
+    try {
+      recognition.abort();
+    } catch (err) {
+      ignoreAbortErrorRef.current = false;
+      setIsStopping(false);
+      setError(err instanceof Error ? err.message : String(err));
+    }
   }, []);
 
   React.useEffect(() => {
     return () => {
-      recognitionRef.current?.stop();
+      const recognition = recognitionRef.current;
+      if (recognition) {
+        recognition.onstart = null;
+        recognition.onresult = null;
+        recognition.onerror = null;
+        recognition.onend = null;
+        recognition.abort();
+      }
       recognitionRef.current = null;
     };
   }, []);
 
+  const transcript = [...committedTranscripts, partialTranscript]
+    .filter(Boolean)
+    .join(" ");
+
   return (
-    <div className="flex flex-col gap-3 rounded-lg border p-4">
-      <div className="flex items-center justify-between">
+    <div className="bg-card flex flex-col gap-3 rounded-lg border p-4">
+      <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-sm text-muted-foreground">Web Speech API demo</p>
+          <h2 className="text-sm font-medium">Web Speech API demo</h2>
           <p className="text-xs text-muted-foreground/80">
             Press the mic, speak, and see interim + final transcripts.
           </p>
         </div>
         <Badge
           variant={
-            isPending || isSupported === null
+            isSupported === null
               ? "outline"
               : isSupported
                 ? "secondary"
@@ -191,7 +267,7 @@ export function WebSpeechDemo() {
           aria-live="polite"
           aria-atomic="true"
         >
-          {isPending || isSupported === null
+          {isSupported === null
             ? "Checking support…"
             : isSupported
               ? "Supported"
@@ -211,7 +287,7 @@ export function WebSpeechDemo() {
         className="w-full border bg-card"
       >
         <div className="flex items-center gap-2 px-3 py-2 w-full">
-          <VoiceInputRecordButton />
+          <VoiceInputRecordButton disabled={!isSupported || isStopping} />
           <VoiceInputPreview className="flex-1" display="full" />
           <VoiceInputCancelButton />
         </div>
@@ -220,10 +296,10 @@ export function WebSpeechDemo() {
       <div className="text-sm text-muted-foreground">
         <p className="font-medium text-foreground">Transcript</p>
         <div className="mt-1 rounded-md border bg-muted/40 p-2 min-h-[72px] whitespace-pre-wrap">
-          {committedTranscripts.length === 0 && !partialTranscript ? (
-            <span className="text-muted-foreground">Nothing yet.</span>
+          {transcript ? (
+            <span>{transcript}</span>
           ) : (
-            <span>{[...committedTranscripts].filter(Boolean).join(" ")}</span>
+            <span className="text-muted-foreground">Nothing yet.</span>
           )}
         </div>
       </div>

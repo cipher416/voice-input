@@ -8,31 +8,26 @@ import {
   SnippetTabsList,
   SnippetTabsTrigger,
 } from "@/components/kibo-ui/snippet";
-import { BoxIcon, PackageIcon, RocketIcon, TerminalIcon } from "lucide-react";
 import { useState } from "react";
 
 const commands = [
   {
     label: "pnpm",
-    icon: BoxIcon,
     code:
       "pnpm dlx shadcn@latest add https://voice-input.cristoper.dev/r/voice-input.json",
   },
   {
     label: "npm",
-    icon: PackageIcon,
     code:
       "npx shadcn@latest add https://voice-input.cristoper.dev/r/voice-input.json",
   },
   {
     label: "yarn",
-    icon: RocketIcon,
     code:
       "yarn dlx shadcn@latest add https://voice-input.cristoper.dev/r/voice-input.json",
   },
   {
     label: "bun",
-    icon: TerminalIcon,
     code:
       "bunx shadcn@latest add https://voice-input.cristoper.dev/r/voice-input.json",
   },
@@ -48,12 +43,14 @@ export function InstallSnippet() {
         <SnippetTabsList>
           {commands.map((command) => (
             <SnippetTabsTrigger key={command.label} value={command.label}>
-              <command.icon size={14} />
-              <span>{command.label}</span>
+              {command.label}
             </SnippetTabsTrigger>
           ))}
         </SnippetTabsList>
-        <SnippetCopyButton value={active.code} aria-label={`Copy ${active.label} command`} />
+        <SnippetCopyButton
+          value={active.code}
+          aria-label={`Copy ${active.label} command`}
+        />
       </SnippetHeader>
 
       {commands.map((command) => (
@@ -64,4 +61,3 @@ export function InstallSnippet() {
     </Snippet>
   );
 }
-

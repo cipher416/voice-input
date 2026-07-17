@@ -1,28 +1,22 @@
 "use client";
 
-import { cva, type VariantProps } from "class-variance-authority";
-import { MicIcon, SquareIcon, XIcon } from "lucide-react";
-import { motion } from "motion/react";
+import { LoaderCircleIcon, MicIcon, SquareIcon, XIcon } from "lucide-react";
 import * as React from "react";
 
-import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 
-const buttonVariants = cva("!px-0", {
-  variants: {
-    size: {
-      default: "h-9 w-9",
-      sm: "h-8 w-8",
-      lg: "h-10 w-10",
-    },
-  },
-  defaultVariants: {
-    size: "default",
-  },
-});
+const EMPTY_TRANSCRIPTS: string[] = [];
+const NOOP = () => {};
 
-type ButtonSize = VariantProps<typeof buttonVariants>["size"];
+const buttonSize = {
+  default: "size-9",
+  sm: "size-8",
+  lg: "size-10",
+} as const;
+
+export type VoiceInputSize = keyof typeof buttonSize;
+export type VoiceInputState = "idle" | "connecting" | "recording";
 
 export interface VoiceInputData {
   /** The current partial (in-progress) transcript */
@@ -33,17 +27,15 @@ export interface VoiceInputData {
   transcript: string;
 }
 
-interface VoiceInputContextValue {
+interface VoiceInputContextValue extends VoiceInputData {
+  state: VoiceInputState;
   isConnected: boolean;
   isConnecting: boolean;
-  transcript: string;
-  partialTranscript: string;
-  committedTranscripts: string[];
   error: string | null;
   start: () => Promise<void> | void;
   stop: () => Promise<void> | void;
   cancel: () => Promise<void> | void;
-  size: ButtonSize;
+  size: VoiceInputSize;
 }
 
 const VoiceInputContext = React.createContext<VoiceInputContextValue | null>(
@@ -73,7 +65,8 @@ function buildTranscript({
   return [committed, partial].filter(Boolean).join(" ");
 }
 
-export interface VoiceInputProps {
+export interface VoiceInputProps
+  extends Omit<React.ComponentPropsWithoutRef<"div">, "children" | "onCancel"> {
   children: React.ReactNode;
 
   /**
@@ -126,15 +119,10 @@ export interface VoiceInputProps {
   onCancel?: () => Promise<void> | void;
 
   /**
-   * Additional CSS classes for the root container
-   */
-  className?: string;
-
-  /**
    * Size variant for the component buttons
    * @default "default"
    */
-  size?: ButtonSize;
+  size?: VoiceInputSize;
 }
 
 const VoiceInput = React.forwardRef<HTMLDivElement, VoiceInputProps>(
@@ -146,19 +134,24 @@ const VoiceInput = React.forwardRef<HTMLDivElement, VoiceInputProps>(
       isConnected,
       isConnecting = false,
       partialTranscript = "",
-      committedTranscripts = [],
+      committedTranscripts = EMPTY_TRANSCRIPTS,
       transcript,
       error = null,
       onStart,
       onStop,
       onCancel,
+      ...props
     },
     ref,
   ) {
-    const noop = React.useCallback(() => {}, []);
+    const state: VoiceInputState = isConnecting
+      ? "connecting"
+      : isConnected
+        ? "recording"
+        : "idle";
 
     const computedData = React.useMemo(() => {
-      const safeCommitted = committedTranscripts ?? [];
+      const safeCommitted = committedTranscripts ?? EMPTY_TRANSCRIPTS;
       const safePartial = partialTranscript ?? "";
 
       return {
@@ -175,16 +168,18 @@ const VoiceInput = React.forwardRef<HTMLDivElement, VoiceInputProps>(
 
     const contextValue: VoiceInputContextValue = React.useMemo(
       () => ({
+        state,
         isConnected,
         isConnecting,
-        start: onStart ?? noop,
-        stop: onStop ?? noop,
-        cancel: onCancel ?? noop,
+        start: onStart ?? NOOP,
+        stop: onStop ?? NOOP,
+        cancel: onCancel ?? NOOP,
         error: error ?? null,
         size,
         ...computedData,
       }),
       [
+        state,
         isConnected,
         isConnecting,
         onStart,
@@ -193,19 +188,20 @@ const VoiceInput = React.forwardRef<HTMLDivElement, VoiceInputProps>(
         error,
         size,
         computedData,
-        noop,
       ],
     );
 
     return (
       <VoiceInputContext.Provider value={contextValue}>
         <div
+          {...props}
           ref={ref}
+          data-slot="voice-input"
+          data-state={state}
           className={cn(
-            "relative inline-flex items-center overflow-hidden rounded-md transition-all duration-200",
-            isConnected
-              ? "bg-background dark:bg-muted shadow-[inset_0_0_0_1px_var(--color-input),0_1px_2px_0_rgba(0,0,0,0.05)]"
-              : "",
+            "relative inline-flex items-center overflow-hidden rounded-md transition-[background-color,box-shadow] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none",
+            state !== "idle" &&
+              "bg-background shadow-[inset_0_0_0_1px_var(--color-input),0_1px_2px_0_rgb(0_0_0/0.05)]",
             className,
           )}
         >
@@ -241,46 +237,60 @@ const VoiceInputRecordButton = React.forwardRef<
       ref={ref}
       type="button"
       variant={variant}
+      size="icon"
+      data-slot="voice-input-record-button"
+      data-state={voiceInput.state}
       onClick={(e) => {
-        if (voiceInput.isConnected) {
-          voiceInput.stop();
-        } else {
-          voiceInput.start();
-        }
         onClick?.(e);
+        if (e.defaultPrevented) return;
+
+        if (voiceInput.isConnected) {
+          void voiceInput.stop();
+        } else {
+          void voiceInput.start();
+        }
       }}
-      disabled={disabled ?? voiceInput.isConnecting}
+      disabled={Boolean(disabled || voiceInput.isConnecting)}
       className={cn(
-        buttonVariants({ size: voiceInput.size }),
-        "relative flex items-center justify-center transition-all",
-        voiceInput.isConnected && "scale-[80%]",
+        buttonSize[voiceInput.size],
+        "relative transition-transform duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] active:scale-[0.97] disabled:active:scale-100 motion-reduce:transform-none motion-reduce:transition-none",
         className,
       )}
-      aria-label={voiceInput.isConnected ? "Stop recording" : "Start recording"}
+      aria-busy={voiceInput.isConnecting}
+      aria-label={
+        voiceInput.isConnecting
+          ? "Starting recording"
+          : voiceInput.isConnected
+            ? "Stop recording"
+            : "Start recording"
+      }
       {...props}
     >
-      <Skeleton
+      <LoaderCircleIcon
+        aria-hidden="true"
         className={cn(
-          "absolute h-4 w-4 rounded-full transition-all duration-200",
+          "absolute transition-[opacity,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none",
           voiceInput.isConnecting
-            ? "bg-primary scale-90"
-            : "scale-[60%] bg-transparent",
+            ? "scale-100 animate-spin opacity-100 motion-reduce:animate-none"
+            : "scale-95 opacity-0",
         )}
       />
       <SquareIcon
+        aria-hidden="true"
         className={cn(
-          "text-destructive absolute h-4 w-4 fill-current transition-all duration-200",
+          "text-destructive absolute fill-current transition-[opacity,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none",
           !voiceInput.isConnecting && voiceInput.isConnected
             ? "scale-100 opacity-100"
-            : "scale-[60%] opacity-0",
+            : "scale-95 opacity-0",
         )}
       />
       <MicIcon
+        aria-hidden="true"
         className={cn(
-          "absolute h-4 w-4 transition-all duration-200",
+          "absolute transition-[opacity,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none",
           !voiceInput.isConnecting && !voiceInput.isConnected
             ? "scale-100 opacity-100"
-            : "scale-[60%] opacity-0",
+            : "scale-95 opacity-0",
         )}
       />
     </Button>
@@ -301,7 +311,7 @@ export interface VoiceInputPreviewProps
    * Which text to display in the preview.
    * - "full": committed + partial transcript
    * - "partial": only the current partial transcript
-   * @default "partial"
+   * @default "full"
    */
   display?: "full" | "partial";
 }
@@ -322,45 +332,34 @@ const VoiceInputPreview = React.forwardRef<
     display === "partial"
       ? voiceInput.partialTranscript
       : voiceInput.transcript;
-  const [visiblePreview, setVisiblePreview] = React.useState("");
-
-  React.useEffect(() => {
-    if (previewText.trim()) {
-      setVisiblePreview(previewText);
-    } else if (!voiceInput.isConnected) {
-      // Clear when not connected so next start shows placeholder again.
-      setVisiblePreview("");
-    }
-  }, [previewText, voiceInput.isConnected]);
-
-  const showPlaceholder = !visiblePreview.trim() && voiceInput.isConnected;
-  const displayText =
-    visiblePreview || (voiceInput.isConnected ? placeholder : "");
+  const hasPreviewText = Boolean(previewText.trim());
+  const showPlaceholder = !hasPreviewText && voiceInput.isConnected;
+  const displayText = hasPreviewText
+    ? previewText
+    : voiceInput.isConnected
+      ? placeholder
+      : "";
 
   return (
     <div
+      {...props}
       ref={ref}
+      data-slot="voice-input-preview"
+      data-state={voiceInput.state}
       inert={voiceInput.isConnected ? undefined : true}
       className={cn(
-        "relative self-stretch text-sm transition-[opacity,transform,width] duration-200 ease-out",
-        showPlaceholder
-          ? "text-muted-foreground italic"
-          : "text-muted-foreground",
+        "text-muted-foreground relative self-stretch text-sm transition-[opacity,width] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none",
+        showPlaceholder && "italic",
         voiceInput.isConnected ? "w-28 opacity-100" : "w-0 opacity-0",
         className,
       )}
       title={displayText}
       aria-hidden={!voiceInput.isConnected}
-      {...props}
     >
       <div className="absolute inset-y-0 -right-1 -left-1 [mask-image:linear-gradient(to_right,transparent,black_10px,black_calc(100%-10px),transparent)]">
-        <motion.p
-          key="text"
-          layout="position"
-          className="absolute top-0 right-0 bottom-0 flex h-full min-w-full items-center px-1 whitespace-nowrap"
-        >
+        <p className="absolute top-0 right-0 bottom-0 flex h-full min-w-full items-center px-1 whitespace-nowrap">
           {displayText}
-        </motion.p>
+        </p>
       </div>
     </div>
   );
@@ -391,23 +390,29 @@ const VoiceInputCancelButton = React.forwardRef<
       ref={ref}
       type="button"
       variant={variant}
+      size="icon"
+      data-slot="voice-input-cancel-button"
+      data-state={voiceInput.state}
       inert={voiceInput.isConnected ? undefined : true}
       onClick={(e) => {
-        voiceInput.cancel();
         onClick?.(e);
+        if (e.defaultPrevented) return;
+
+        void voiceInput.cancel();
       }}
       className={cn(
-        buttonVariants({ size: voiceInput.size }),
-        "transition-[opacity,transform,width] duration-200 ease-out",
+        buttonSize[voiceInput.size],
+        "transition-[opacity,transform,width] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] active:scale-[0.97] motion-reduce:transform-none motion-reduce:transition-none",
         voiceInput.isConnected
-          ? "scale-[80%] opacity-100"
-          : "pointer-events-none w-0 scale-100 opacity-0",
+          ? "scale-100 opacity-100"
+          : "pointer-events-none w-0 scale-95 opacity-0",
         className,
       )}
       aria-label="Cancel recording"
+      aria-hidden={!voiceInput.isConnected}
       {...props}
     >
-      <XIcon className="h-3 w-3" />
+      <XIcon aria-hidden="true" />
     </Button>
   );
 });

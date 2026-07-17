@@ -11,88 +11,17 @@ import {
 import { CheckIcon, CopyIcon } from "lucide-react";
 import type {
   ComponentProps,
+  ComponentType,
   HTMLAttributes,
-  ReactElement,
   ReactNode,
 } from "react";
 import {
-  cloneElement,
   createContext,
   useContext,
   useEffect,
+  useRef,
   useState,
 } from "react";
-import type { IconType } from "react-icons";
-import {
-  SiAstro,
-  SiBiome,
-  SiBower,
-  SiBun,
-  SiC,
-  SiCircleci,
-  SiCoffeescript,
-  SiCplusplus,
-  SiCss3,
-  SiCssmodules,
-  SiDart,
-  SiDocker,
-  SiDocusaurus,
-  SiDotenv,
-  SiEditorconfig,
-  SiEslint,
-  SiGatsby,
-  SiGitignoredotio,
-  SiGnubash,
-  SiGo,
-  SiGraphql,
-  SiGrunt,
-  SiGulp,
-  SiHandlebarsdotjs,
-  SiHtml5,
-  SiJavascript,
-  SiJest,
-  SiJson,
-  SiLess,
-  SiMarkdown,
-  SiMdx,
-  SiMintlify,
-  SiMocha,
-  SiMysql,
-  SiNextdotjs,
-  SiPerl,
-  SiPhp,
-  SiPostcss,
-  SiPrettier,
-  SiPrisma,
-  SiPug,
-  SiPython,
-  SiR,
-  SiReact,
-  SiReadme,
-  SiRedis,
-  SiRemix,
-  SiRive,
-  SiRollupdotjs,
-  SiRuby,
-  SiSanity,
-  SiSass,
-  SiScala,
-  SiSentry,
-  SiShadcnui,
-  SiStorybook,
-  SiStylelint,
-  SiSublimetext,
-  SiSvelte,
-  SiSvg,
-  SiSwift,
-  SiTailwindcss,
-  SiToml,
-  SiTypescript,
-  SiVercel,
-  SiVite,
-  SiVuedotjs,
-  SiWebassembly,
-} from "react-icons/si";
 import {
   type BundledLanguage,
   type CodeOptionsMultipleThemes,
@@ -102,89 +31,15 @@ import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { copyToClipboard } from "@/lib/copy-to-clipboard";
 import { cn } from "@/lib/utils";
 
 export type { BundledLanguage } from "shiki";
-
-const filenameIconMap = {
-  ".env": SiDotenv,
-  "*.astro": SiAstro,
-  "biome.json": SiBiome,
-  ".bowerrc": SiBower,
-  "bun.lockb": SiBun,
-  "*.c": SiC,
-  "*.cpp": SiCplusplus,
-  ".circleci/config.yml": SiCircleci,
-  "*.coffee": SiCoffeescript,
-  "*.module.css": SiCssmodules,
-  "*.css": SiCss3,
-  "*.dart": SiDart,
-  Dockerfile: SiDocker,
-  "docusaurus.config.js": SiDocusaurus,
-  ".editorconfig": SiEditorconfig,
-  ".eslintrc": SiEslint,
-  "eslint.config.*": SiEslint,
-  "gatsby-config.*": SiGatsby,
-  ".gitignore": SiGitignoredotio,
-  "*.go": SiGo,
-  "*.graphql": SiGraphql,
-  "*.sh": SiGnubash,
-  "Gruntfile.*": SiGrunt,
-  "gulpfile.*": SiGulp,
-  "*.hbs": SiHandlebarsdotjs,
-  "*.html": SiHtml5,
-  "*.js": SiJavascript,
-  "*.json": SiJson,
-  "*.test.js": SiJest,
-  "*.less": SiLess,
-  "*.md": SiMarkdown,
-  "*.mdx": SiMdx,
-  "mintlify.json": SiMintlify,
-  "mocha.opts": SiMocha,
-  "*.mustache": SiHandlebarsdotjs,
-  "*.sql": SiMysql,
-  "next.config.*": SiNextdotjs,
-  "*.pl": SiPerl,
-  "*.php": SiPhp,
-  "postcss.config.*": SiPostcss,
-  "prettier.config.*": SiPrettier,
-  "*.prisma": SiPrisma,
-  "*.pug": SiPug,
-  "*.py": SiPython,
-  "*.r": SiR,
-  "*.rb": SiRuby,
-  "*.jsx": SiReact,
-  "*.tsx": SiReact,
-  "readme.md": SiReadme,
-  "*.rdb": SiRedis,
-  "remix.config.*": SiRemix,
-  "*.riv": SiRive,
-  "rollup.config.*": SiRollupdotjs,
-  "sanity.config.*": SiSanity,
-  "*.sass": SiSass,
-  "*.scss": SiSass,
-  "*.sc": SiScala,
-  "*.scala": SiScala,
-  "sentry.client.config.*": SiSentry,
-  "components.json": SiShadcnui,
-  "storybook.config.*": SiStorybook,
-  "stylelint.config.*": SiStylelint,
-  ".sublime-settings": SiSublimetext,
-  "*.svelte": SiSvelte,
-  "*.svg": SiSvg,
-  "*.swift": SiSwift,
-  "tailwind.config.*": SiTailwindcss,
-  "*.toml": SiToml,
-  "*.ts": SiTypescript,
-  "vercel.json": SiVercel,
-  "vite.config.*": SiVite,
-  "*.vue": SiVuedotjs,
-  "*.wasm": SiWebassembly,
-};
 
 const lineNumberClassNames = cn(
   "[&_code]:[counter-reset:line]",
@@ -381,7 +236,7 @@ export const CodeBlockFiles = ({
 };
 
 export type CodeBlockFilenameProps = HTMLAttributes<HTMLDivElement> & {
-  icon?: IconType;
+  icon?: ComponentType<{ className?: string }>;
   value?: string;
 };
 
@@ -393,13 +248,7 @@ export const CodeBlockFilename = ({
   ...props
 }: CodeBlockFilenameProps) => {
   const { value: activeValue } = useContext(CodeBlockContext);
-  const defaultIcon = Object.entries(filenameIconMap).find(([pattern]) => {
-    const regex = new RegExp(
-      `^${pattern.replace(/\\/g, "\\\\").replace(/\./g, "\\.").replace(/\*/g, ".*")}$`
-    );
-    return regex.test(children as string);
-  })?.[1];
-  const Icon = icon ?? defaultIcon;
+  const Icon = icon;
 
   if (value !== activeValue) {
     return null;
@@ -407,7 +256,10 @@ export const CodeBlockFilename = ({
 
   return (
     <div
-      className="flex items-center gap-2 bg-secondary px-4 py-1.5 text-muted-foreground text-xs"
+      className={cn(
+        "flex items-center gap-2 bg-secondary px-4 py-1.5 text-muted-foreground text-xs",
+        className
+      )}
       {...props}
     >
       {Icon && <Icon className="h-4 w-4 shrink-0" />}
@@ -458,7 +310,11 @@ export const CodeBlockSelectContent = ({
 }: CodeBlockSelectContentProps) => {
   const { data } = useContext(CodeBlockContext);
 
-  return <SelectContent {...props}>{data.map(children)}</SelectContent>;
+  return (
+    <SelectContent {...props}>
+      <SelectGroup>{data.map(children)}</SelectGroup>
+    </SelectContent>
+  );
 };
 
 export type CodeBlockSelectItemProps = ComponentProps<typeof SelectItem>;
@@ -483,60 +339,60 @@ export const CodeBlockCopyButton = ({
   timeout = 2000,
   children,
   className,
+  onClick,
+  "aria-label": ariaLabel = "Copy code",
   ...props
 }: CodeBlockCopyButtonProps) => {
   const [isCopied, setIsCopied] = useState(false);
+  const timeoutRef = useRef<number | null>(null);
   const { data, value } = useContext(CodeBlockContext);
   const code = data.find((item) => item.language === value)?.code;
 
-  const copyToClipboard = () => {
-    if (typeof window === "undefined" || !code) return;
-
-    const write = async () => {
-      if (navigator?.clipboard?.writeText) {
-        return navigator.clipboard.writeText(code);
-      }
-
-      // Fallback for browsers/contexts without the async Clipboard API
-      const textarea = document.createElement("textarea");
-      textarea.value = code;
-      textarea.setAttribute("readonly", "");
-      textarea.style.position = "absolute";
-      textarea.style.left = "-9999px";
-      document.body.appendChild(textarea);
-      textarea.select();
-      try {
-        document.execCommand("copy");
-      } finally {
-        document.body.removeChild(textarea);
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current !== null) {
+        window.clearTimeout(timeoutRef.current);
       }
     };
+  }, []);
 
-    write().then(() => {
+  const handleCopy = async () => {
+    if (!code) return;
+
+    try {
+      await copyToClipboard(code);
       setIsCopied(true);
       onCopy?.();
-      setTimeout(() => setIsCopied(false), timeout);
-    }, onError);
-  };
 
-  if (asChild) {
-    return cloneElement(children as ReactElement, {
-      // @ts-expect-error - we know this is a button
-      onClick: copyToClipboard,
-    });
-  }
+      if (timeoutRef.current !== null) {
+        window.clearTimeout(timeoutRef.current);
+      }
+      timeoutRef.current = window.setTimeout(() => setIsCopied(false), timeout);
+    } catch (error) {
+      onError?.(error instanceof Error ? error : new Error(String(error)));
+    }
+  };
 
   const Icon = isCopied ? CheckIcon : CopyIcon;
 
   return (
     <Button
-      className={cn("shrink-0", className)}
-      onClick={copyToClipboard}
+      asChild={asChild}
+      className={cn(
+        "shrink-0 transition-transform duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] active:scale-[0.97] motion-reduce:transform-none motion-reduce:transition-none",
+        className
+      )}
+      onClick={(event) => {
+        onClick?.(event);
+        if (!event.defaultPrevented) void handleCopy();
+      }}
       size="icon"
       variant="ghost"
+      aria-label={isCopied ? "Copied" : ariaLabel}
+      aria-live="polite"
       {...props}
     >
-      {children ?? <Icon className="text-muted-foreground" size={14} />}
+      {children ?? <Icon aria-hidden="true" className="text-muted-foreground" />}
     </Button>
   );
 };

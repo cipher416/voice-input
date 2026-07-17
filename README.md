@@ -38,8 +38,28 @@ Other package managers:
 - yarn: `yarn dlx shadcn@latest add https://voice-input.cristoper.dev/r/voice-input.json`
 - bun: `bunx shadcn@latest add https://voice-input.cristoper.dev/r/voice-input.json`
 
+The component is controlled and provider-agnostic. Import the installed parts
+from `@/components/voice-input`, then connect `isConnected`, transcript data,
+and the start/stop/cancel handlers to your speech service.
+
+```tsx
+<VoiceInput
+  isConnected={speech.isConnected}
+  partialTranscript={speech.partialTranscript}
+  committedTranscripts={speech.committedTranscripts}
+  onStart={speech.start}
+  onStop={speech.stop}
+  onCancel={speech.cancel}
+>
+  <VoiceInputRecordButton />
+  <VoiceInputPreview />
+  <VoiceInputCancelButton />
+</VoiceInput>
+```
+
+See `components/web-speech-demo.tsx` for a complete browser Web Speech adapter.
+
 ## Docs
 
 - shadcn registry guide: https://ui.shadcn.com/docs/registry
 - Tailwind v4 info: https://tailwindcss.com
-- Motion: https://motion.dev/

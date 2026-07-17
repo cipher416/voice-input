@@ -3,13 +3,14 @@
 import { CheckIcon, CopyIcon } from "lucide-react";
 import {
   type ComponentProps,
-  cloneElement,
   type HTMLAttributes,
-  type ReactElement,
+  useEffect,
+  useRef,
   useState,
 } from "react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { copyToClipboard } from "@/lib/copy-to-clipboard";
 import { cn } from "@/lib/utils";
 
 export type SnippetProps = ComponentProps<typeof Tabs>;
@@ -50,45 +51,59 @@ export const SnippetCopyButton = ({
   onError,
   timeout = 2000,
   children,
+  className,
+  onClick,
+  "aria-label": ariaLabel = "Copy code",
   ...props
 }: SnippetCopyButtonProps) => {
   const [isCopied, setIsCopied] = useState(false);
+  const timeoutRef = useRef<number | null>(null);
 
-  const copyToClipboard = () => {
-    if (
-      typeof window === "undefined" ||
-      !navigator.clipboard.writeText ||
-      !value
-    ) {
-      return;
-    }
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current !== null) {
+        window.clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
 
-    navigator.clipboard.writeText(value).then(() => {
+  const handleCopy = async () => {
+    if (!value) return;
+
+    try {
+      await copyToClipboard(value);
       setIsCopied(true);
       onCopy?.();
 
-      setTimeout(() => setIsCopied(false), timeout);
-    }, onError);
+      if (timeoutRef.current !== null) {
+        window.clearTimeout(timeoutRef.current);
+      }
+      timeoutRef.current = window.setTimeout(() => setIsCopied(false), timeout);
+    } catch (error) {
+      onError?.(error instanceof Error ? error : new Error(String(error)));
+    }
   };
 
-  if (asChild) {
-    return cloneElement(children as ReactElement, {
-      // @ts-expect-error - we know this is a button
-      onClick: copyToClipboard,
-    });
-  }
-
-  const icon = isCopied ? <CheckIcon size={14} /> : <CopyIcon size={14} />;
+  const Icon = isCopied ? CheckIcon : CopyIcon;
 
   return (
     <Button
-      className="opacity-0 transition-opacity group-hover:opacity-100"
-      onClick={copyToClipboard}
+      asChild={asChild}
+      className={cn(
+        "shrink-0 transition-transform duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] active:scale-[0.97] motion-reduce:transform-none motion-reduce:transition-none",
+        className,
+      )}
+      onClick={(event) => {
+        onClick?.(event);
+        if (!event.defaultPrevented) void handleCopy();
+      }}
       size="icon"
       variant="ghost"
+      aria-label={isCopied ? "Copied" : ariaLabel}
+      aria-live="polite"
       {...props}
     >
-      {children ?? icon}
+      {children ?? <Icon aria-hidden="true" />}
     </Button>
   );
 };
@@ -118,6 +133,6 @@ export const SnippetTabsContent = ({
     className={cn("mt-0 bg-background p-4 text-sm", className)}
     {...props}
   >
-    <pre className="truncate">{children}</pre>
+    <pre className="overflow-x-auto whitespace-pre">{children}</pre>
   </TabsContent>
 );
